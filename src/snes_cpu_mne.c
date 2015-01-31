@@ -605,6 +605,7 @@ static void execute_RTL(struct snes_effective_address eff_addr, snes_cpu_registe
 	pc = snes_cpu_stack_pull(stack);
 	pc += snes_cpu_stack_pull(stack) << 8;
 	pc++;
+	pbr = snes_cpu_stack_pull(stack);
 	snes_cpu_registers_program_counter_set(registers, pc);
 	snes_cpu_registers_program_bank_set(registers, pbr);
 }
