@@ -1720,7 +1720,8 @@ void snes_cpu_next_op(snes_cpu_t *cpu)
 	int i;
 	uint8_t fetch_size;
 	uint16_t pc = snes_cpu_registers_program_counter_get(cpu->registers);
-	uint8_t word = snes_bus_read(cpu->bus, pc);
+	uint32_t pbr = snes_cpu_registers_program_bank_get(cpu->registers);
+	uint8_t word = snes_bus_read(cpu->bus, pc + pbr);
 	uint32_t operand = 0;
 	snes_cpu_registers_program_counter_inc(cpu->registers);
 	instruction.opcode = ops[word];
@@ -1732,7 +1733,7 @@ void snes_cpu_next_op(snes_cpu_t *cpu)
 		snes_cpu_registers_program_counter_inc(cpu->registers);
 	}
 
-	printf("0x%X : 0x%02X %s (0x%06X) || ",pc , word, mnemonics_tostring(instruction.opcode.mne),operand);
+	printf("0x%06X : 0x%02X %s (0x%06X) || ",pc + pbr , word, mnemonics_tostring(instruction.opcode.mne),operand);
 
 	snes_cpu_registers_dump(cpu->registers);
 	printf("\n");

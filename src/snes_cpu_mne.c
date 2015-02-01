@@ -119,11 +119,7 @@ static void execute_AND(struct snes_effective_address eff_addr, snes_cpu_registe
 	//Get the value
 	value = fetch_data(eff_addr, registers, bus, acc.len == CPU_REGISTER_8_BIT? 1:2);
 
-	if(acc.len == CPU_REGISTER_16_BIT) {
-		result = acc.value16 & value;
-	} else {
-		result = acc.value8_low & value;
-	}
+	result = acc.value16 & value;
 
 	//This will set N and Z flag
 	snes_cpu_registers_accumulator_set(registers, result);
@@ -219,7 +215,7 @@ static void execute_BRA(struct snes_effective_address eff_addr, snes_cpu_registe
 
 static void execute_BRK(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
-
+ //Call interrupt, do nothing for now
 }
 
 static void execute_BRL(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
@@ -464,22 +460,41 @@ static void execute_NOP(struct snes_effective_address eff_addr, snes_cpu_registe
 
 static void execute_ORA(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
+	struct snes_cpu_register_value acc = snes_cpu_registers_accumulator_get(registers);
+	uint16_t value = 0;
+	uint16_t result = 0;
 
+	//Get the value
+	value = fetch_data(eff_addr, registers, bus, acc.len == CPU_REGISTER_8_BIT? 1:2);
+
+	result = acc.value16 | value;
+
+	//This will set N and Z flag
+	snes_cpu_registers_accumulator_set(registers, result);
 }
 
 static void execute_PEA(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
-
+	uint16_t value;
+	value = fetch_data(eff_addr, registers, bus, 2);
+	snes_cpu_stack_push(stack, value >> 8);
+	snes_cpu_stack_push(stack, value); 
 }
 
 static void execute_PEI(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
-
+	uint16_t value;
+	value = fetch_data(eff_addr, registers, bus, 2);
+	snes_cpu_stack_push(stack, value >> 8);
+	snes_cpu_stack_push(stack, value); 
 }
 
 static void execute_PER(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
-
+	uint16_t value;
+	value = fetch_data(eff_addr, registers, bus, 2);
+	snes_cpu_stack_push(stack, value >> 8);
+	snes_cpu_stack_push(stack, value); 
 }
 
 static void execute_PHA(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
@@ -585,17 +600,71 @@ static void execute_REP(struct snes_effective_address eff_addr, snes_cpu_registe
 
 static void execute_ROL(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
-
+	struct snes_cpu_register_value acc = snes_cpu_registers_accumulator_get(registers);
+	uint16_t value = fetch_data(eff_addr, registers, bus, acc.len == CPU_REGISTER_8_BIT ? 1:2);
+	if(acc.len == CPU_REGISTER_8_BIT) {
+		uint8_t result = (uint8_t)value << 1;
+		if(snes_cpu_registers_status_flag_isset(registers, STATUS_FLAG_C))
+			result++;
+		if(value & 0x80)
+			snes_cpu_registers_status_flag_set(registers, STATUS_FLAG_C);
+		else
+			snes_cpu_registers_status_flag_reset(registers, STATUS_FLAG_C);
+		snes_cpu_registers_accumulator_set(registers, result);
+	} else {
+		uint16_t result = value << 1;
+		if(snes_cpu_registers_status_flag_isset(registers, STATUS_FLAG_C))
+			result++;
+		if(value & 0x8000)
+			snes_cpu_registers_status_flag_set(registers, STATUS_FLAG_C);
+		else
+			snes_cpu_registers_status_flag_reset(registers, STATUS_FLAG_C);
+		snes_cpu_registers_accumulator_set(registers, result);
+	}
 }
 
 static void execute_ROR(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
-
+	struct snes_cpu_register_value acc = snes_cpu_registers_accumulator_get(registers);
+	uint16_t value = fetch_data(eff_addr, registers, bus, acc.len == CPU_REGISTER_8_BIT ? 1:2);
+	uint8_t c_wasset = 0;
+	if(snes_cpu_registers_status_flag_isset(registers, STATUS_FLAG_C))
+			c_wasset = 1;
+	if(acc.len == CPU_REGISTER_8_BIT) {
+		uint8_t result = (uint8_t)value >> 1;
+		if(value & 0x80)
+			snes_cpu_registers_status_flag_set(registers, STATUS_FLAG_C);
+		else
+			snes_cpu_registers_status_flag_reset(registers, STATUS_FLAG_C);
+		if(c_wasset)
+			result += 0x80;
+		snes_cpu_registers_accumulator_set(registers, result);
+	} else {
+		uint16_t result = value >> 1;
+		if(value & 0x8000)
+			snes_cpu_registers_status_flag_set(registers, STATUS_FLAG_C);
+		else
+			snes_cpu_registers_status_flag_reset(registers, STATUS_FLAG_C);
+		if(c_wasset)
+			result += 0x8000;
+		snes_cpu_registers_accumulator_set(registers, result);
+	}
 }
 
 static void execute_RTI(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
+	uint16_t pc;
+	uint8_t pbr;
+	uint8_t p;
 
+	pc = snes_cpu_stack_pull(stack);
+	pc += snes_cpu_stack_pull(stack) << 8;
+	pbr = snes_cpu_stack_pull(stack);
+	p = snes_cpu_stack_pull(stack);
+
+	snes_cpu_registers_program_counter_set(registers, pc);
+	snes_cpu_registers_program_bank_set(registers, pbr);
+	snes_cpu_registers_status_flag_force(registers, p);
 }
 
 static void execute_RTL(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
