@@ -16,8 +16,23 @@ struct _snes_address_decoder{
 snes_address_decoder_t *snes_addrdecoder_init(snes_rom_t *rom)
 {
 	snes_address_decoder_t *decoder = (snes_address_decoder_t *)malloc(sizeof(snes_address_decoder_t));
+	if (decoder == NULL) {
+		printf("Unable to allocate memory for the decoder !\n");
+		goto error_alloc;
+	}
 	decoder->rom_type = snes_rom_get_type(rom);
+	if(decoder->rom_type == SNES_ROM_TYPE_UNKNOWN ||
+	   //Hirom is not supported yet !
+	   decoder->rom_type == SNES_ROM_TYPE_HIROM) {
+		printf("ROM type not supported ! (%s)\n",
+			   snes_rom_type_to_string(decoder->rom_type));
+		goto error_rom;
+	}
 	return decoder;
+error_rom:
+	free(decoder);
+error_alloc:
+	return NULL;
 }
 
 void snes_addrdecoder_destroy(snes_address_decoder_t *decoder)
@@ -58,13 +73,6 @@ snes_address_t *snes_addrdecoder_decode(snes_address_decoder_t *decoder, uint32_
 
 	address->type = OTHER;
 	address->dec_addr = addr;
-
-	//Only for lorom
-	if(decoder->rom_type == SNES_ROM_TYPE_HIROM) {
-		printf("snses_addrdecoder : HIROM is not supported !\n");
-		free(address);
-		return NULL;
-	}
 
 	if ((bank >= 0x00 && bank <= 0x3F) || (bank >= 0x80 && bank <= 0xBF)) {
 		if(offset >= 0x0000 && offset <= 0x1FFF) {

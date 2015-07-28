@@ -87,11 +87,13 @@ snes_rom_t *snes_rom_init(const char *path)
 	struct stat sb;
 	int err;
 	snes_rom_t *rom = (snes_rom_t *)malloc(sizeof(snes_rom_t));
-
+	if(rom == NULL) {
+		goto error_alloc;
+	}
 	rom->fd = open(path,O_RDWR);
 	if (rom->fd < 0) {
-		printf("Fail to open rom file (%d)!\n",errno);
-		return NULL;
+		printf("Fail to open rom file (%s)!\n",strerror(errno));
+		goto error_open;
 	}
 
 	fstat(rom->fd, &sb);
@@ -121,7 +123,9 @@ fail_detect:
 	munmap((void *)rom->entirerom,rom->size);
 maperr:
 	close(rom->fd);
+error_open:
 	free(rom);
+error_alloc:
 	return NULL;
 }
 

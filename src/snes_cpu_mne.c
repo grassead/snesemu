@@ -1,7 +1,7 @@
 #include "snes_cpu_mne.h"
 #include "snes_cpu_registers.h"
 #include <stdio.h>
-
+#include <assert.h>
 
 /*For test*/
 #include "snes_cpu.h"
@@ -955,9 +955,13 @@ static void execute_XCE(struct snes_effective_address eff_addr, snes_cpu_registe
 
 void snes_cpu_mne_execute(snes_cpu_mnemonic_t mne, struct snes_effective_address eff_addr, snes_cpu_t *cpu)
 {
+	assert(cpu != NULL);
 	snes_cpu_registers_t *registers = snes_cpu_get_registers(cpu);
+	assert(registers != NULL);
 	snes_bus_t *bus = snes_cpu_get_bus(cpu);
+	assert(bus != NULL);
 	snes_cpu_stack_t *stack = snes_cpu_get_stack(cpu);
+	assert(stack != NULL);
 
 	switch(mne){
 		case ADC:

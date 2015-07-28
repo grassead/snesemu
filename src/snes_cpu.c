@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "snes_cpu_defs.h"
 #include "snes_cpu.h"
@@ -1680,12 +1681,38 @@ static uint8_t snes_cpu_get_opcode_size(snes_cpu_t *cpu, snes_cpu_opcode_t opcod
 snes_cpu_t *snes_cpu_power_up(snes_cart_t *cart, snes_bus_t *bus)
 {
 	snes_cpu_t *cpu = malloc(sizeof(snes_cpu_t));
+	if(cpu == NULL) {
+		printf("Error at allocation time !\n");
+		goto error_alloc;
+	}
+
 	cpu->cart = cart;
 	cpu->bus = bus;
+	assert(cpu->cart != NULL);
+	assert(cpu->bus != NULL);
+
 	cpu->registers = snes_cpu_registers_init();
-	cpu->stack = snes_cpu_stack_init(cpu->registers, cpu->bus);
+	if(cpu->registers == NULL) {
+		goto error_registers;
+	}
 	snes_cpu_registers_program_counter_set(cpu->registers, snes_rom_get_emu_interrupt_vectors(snes_cart_get_rom(cart)).reset);
+
+	cpu->stack = snes_cpu_stack_init(cpu->registers, cpu->bus);
+	if(cpu->stack == NULL) {
+		printf("Error ar stack init !\n");
+		goto error_stack;
+	}
+
+
+
 	return cpu;
+
+error_stack:
+	snes_cpu_registers_destroy(cpu->registers);
+error_registers:
+	free(cpu);
+error_alloc:
+	return NULL;
 }
 
 void snes_cpu_power_down(snes_cpu_t *cpu)

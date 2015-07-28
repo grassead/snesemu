@@ -21,6 +21,10 @@ struct _snes_cpu_registers{
 snes_cpu_registers_t *snes_cpu_registers_init()
 {
 	snes_cpu_registers_t *registers = malloc(sizeof(snes_cpu_registers_t));
+	if(registers == NULL) {
+		printf("Error at allocation time !\n");
+		goto error_alloc;
+	}
 	memset(registers, 0, sizeof(snes_cpu_registers_t));
 
 	//All other registers will be configured by the emulation
@@ -29,6 +33,9 @@ snes_cpu_registers_t *snes_cpu_registers_init()
 	snes_cpu_registers_emulation_set(registers);
 	snes_cpu_registers_status_flag_reset(registers, 0xf);
 	return registers;
+
+error_alloc:
+	return NULL;
 }
 
 void snes_cpu_registers_destroy(snes_cpu_registers_t *registers)

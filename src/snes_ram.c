@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <stdio.h>
+
 #include "snes_ram.h"
 
 struct _snes_ram {
@@ -10,10 +12,21 @@ struct _snes_ram {
 snes_ram_t *snes_ram_init(uint32_t size)
 {
 	snes_ram_t *ram = (snes_ram_t *)malloc(sizeof(snes_ram_t));
+	if(ram == NULL) {
+		printf("Error at allocation time !\n");
+		goto error_alloc;
+	}
 	ram->size = size;
 	ram->data = (int8_t *)malloc(size * sizeof(int8_t));
-
+	if(ram->data == NULL) {
+		printf("Error when allocating the RAM !\n");
+		goto error_alloc_data;
+	}
 	return ram;
+error_alloc_data:
+	free(ram);
+error_alloc:
+	return NULL;
 }
 
 void snes_ram_destroy(snes_ram_t *ram)

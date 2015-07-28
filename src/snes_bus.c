@@ -12,9 +12,25 @@ struct _snes_bus{
 snes_bus_t *snes_bus_power_up(snes_cart_t *cart, snes_ram_t *wram)
 {
 	snes_bus_t *bus = malloc(sizeof(snes_bus_t));
+	if(bus == NULL) {
+		goto error_alloc;
+	}
+
 	bus->cart = cart;
+	if(bus->cart == NULL) {
+		goto error_input;
+	}
+
 	bus->wram = wram;
+	if(bus->wram == NULL) {
+		goto error_input;
+	}
 	return bus;
+
+error_input:
+	free(bus);
+error_alloc:
+	return NULL;
 }
 
 void snes_bus_power_down(snes_bus_t *bus)
@@ -51,7 +67,7 @@ uint8_t snes_bus_read(snes_bus_t *bus, uint32_t addr)
 		}
 		default:
 		{
-			//printf("snes_bus : addr type (%d) not handled in read (addr = 0x%06X; data = 0x%4X!)\n",type,addr,data);
+			printf("snes_bus : addr type (%d) not handled in read (addr = 0x%06X)!)\n",type,addr);
 			break;
 		}
 	}
@@ -86,7 +102,7 @@ void snes_bus_write(snes_bus_t *bus, uint32_t addr, uint8_t data)
 		}
 		default:
 		{
-			//printf("snes_bus : addr type (%d) not handled in write (addr = 0x%06X; data = 0x%4X!)\n",type,addr,data);
+			printf("snes_bus : addr type (%d) not handled in write (addr = 0x%06X; data = 0x%4X!)\n",type,addr,data);
 			break;
 		}
 	}
