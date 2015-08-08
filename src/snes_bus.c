@@ -7,9 +7,10 @@
 struct _snes_bus{
 	snes_cart_t *cart;
 	snes_ram_t *wram;
+	snes_apu_t *apu;
 };
 
-snes_bus_t *snes_bus_power_up(snes_cart_t *cart, snes_ram_t *wram)
+snes_bus_t *snes_bus_power_up(snes_cart_t *cart, snes_ram_t *wram, snes_apu_t *apu)
 {
 	snes_bus_t *bus = malloc(sizeof(snes_bus_t));
 	if(bus == NULL) {
@@ -25,6 +26,12 @@ snes_bus_t *snes_bus_power_up(snes_cart_t *cart, snes_ram_t *wram)
 	if(bus->wram == NULL) {
 		goto error_input;
 	}
+
+	bus->apu = apu;
+	if(bus->apu == NULL) {
+		goto error_input;
+	}
+
 	return bus;
 
 error_input:
@@ -65,6 +72,11 @@ uint8_t snes_bus_read(snes_bus_t *bus, uint32_t addr)
 			data = snes_ram_read(bus->wram,translated_addr);
 			break;
 		}
+		case PPU1_APU:
+		{
+			data = snes_apu_port_read(snes_apu_get_port(bus->apu), translated_addr);
+			break;
+		}
 		default:
 		{
 			printf("snes_bus : addr type (%d) not handled in read (addr = 0x%06X)!)\n",type,addr);
@@ -98,6 +110,12 @@ void snes_bus_write(snes_bus_t *bus, uint32_t addr, uint8_t data)
 		case WRAM:
 		{
 			snes_ram_write(bus->wram,translated_addr,data);
+			break;
+		}
+		case PPU1_APU:
+		{
+			//printf("Writing to APU : translated_addr = 0x%x addr = 0x%06X; data = 0x%4X\n",translated_addr,addr,data);
+			snes_apu_port_write(snes_apu_get_port(bus->apu), translated_addr, data);
 			break;
 		}
 		default:

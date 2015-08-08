@@ -106,6 +106,7 @@ static void execute_ADC(struct snes_effective_address eff_addr, snes_cpu_registe
 	} else {
 		//BCD is not supported !!
 		printf("BCD is not supported !!!\n");
+		assert(0);
 	}
 }
 
@@ -163,7 +164,7 @@ static void execute_BCS(struct snes_effective_address eff_addr, snes_cpu_registe
 
 static void execute_BEQ(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
-	if(!snes_cpu_registers_status_flag_isset(registers, STATUS_FLAG_Z))
+	if(snes_cpu_registers_status_flag_isset(registers, STATUS_FLAG_Z))
 		snes_cpu_registers_program_counter_set(registers, eff_addr.simple_address);
 }
 
@@ -274,7 +275,7 @@ static void execute_CMP(struct snes_effective_address eff_addr, snes_cpu_registe
 			snes_cpu_registers_status_flag_reset(registers, STATUS_FLAG_C);
 	} else {
 		result16 = acc.value8_low - (int16_t)(uint8_t)data;
-		snes_cpu_registers_update8(registers, data);
+		snes_cpu_registers_update8(registers, result16);
 		if(result16 >= 0)
 			snes_cpu_registers_status_flag_set(registers, STATUS_FLAG_C);
 		else
@@ -401,8 +402,8 @@ static void execute_JMP(struct snes_effective_address eff_addr, snes_cpu_registe
 static void execute_JSR(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
 	uint16_t pc = snes_cpu_registers_program_counter_get(registers) - 1;
-	snes_cpu_stack_push(stack, (uint8_t)pc >> 8);
-	snes_cpu_stack_push(stack, (uint8_t)pc);
+	snes_cpu_stack_push(stack, (uint8_t)(pc >> 8));
+	snes_cpu_stack_push(stack, (uint8_t)(pc));
 	snes_cpu_registers_program_counter_set(registers, eff_addr.simple_address);
 }
 
@@ -682,8 +683,10 @@ static void execute_RTL(struct snes_effective_address eff_addr, snes_cpu_registe
 static void execute_RTS(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
 	uint16_t pc;
+	uint16_t high;
 	pc = snes_cpu_stack_pull(stack);
-	pc += snes_cpu_stack_pull(stack) << 8;
+	high = snes_cpu_stack_pull(stack) << 8;
+	pc += high;
 	pc++;
 	snes_cpu_registers_program_counter_set(registers, pc);
 }

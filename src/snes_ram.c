@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include "snes_ram.h"
 
@@ -38,10 +39,12 @@ void snes_ram_destroy(snes_ram_t *ram)
 
 uint8_t snes_ram_read(snes_ram_t *ram, uint32_t addr)
 {
+	assert(addr < ram->size);
 	return ram->data[addr];
 }
 
 void snes_ram_write(snes_ram_t *ram, uint32_t addr, int8_t data)
 {
+	assert(addr < ram->size);
 	ram->data[addr] = data;
 }

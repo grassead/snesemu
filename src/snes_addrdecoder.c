@@ -65,6 +65,11 @@ static uint32_t snes_addrdecoder_trans_rom_addr(uint8_t bank, uint16_t offset)
 	return (bank & 0x7F) * 0x8000 + (offset - 0x8000);
 }
 
+static uint32_t snes_addrdecoder_trans_apu_addr(uint8_t bank, uint16_t offset)
+{
+	return (offset - 0x2140);
+}
+
 snes_address_t *snes_addrdecoder_decode(snes_address_decoder_t *decoder, uint32_t addr)
 {
 	snes_address_t *address = malloc(sizeof(snes_address_t));
@@ -80,8 +85,14 @@ snes_address_t *snes_addrdecoder_decode(snes_address_decoder_t *decoder, uint32_
 			address->dec_addr = snes_addrdecoder_trans_wram_addr(bank, offset);
 		} else if (offset >= 0x2000 && offset <= 0x20FF) {
 			// Nor used !
-		} else if (offset >= 0x2100 && offset <= 0x21FF) {
+		} else if (offset >= 0x2100 && offset <= 0x213F) {
+			address->type = OTHER;
+		} else if (offset >= 0x2140 && offset <= 0x217F) {
+			//Not so true. PPU1 and 2 are also here !
 			address->type = PPU1_APU;
+			address->dec_addr = snes_addrdecoder_trans_apu_addr(bank, offset);
+		} else if (offset >= 0x2180 && offset <= 0x2FFF) {
+			address->type = OTHER;
 		} else if (offset >= 0x2200 && offset <= 0x2FFF) {
 			// Nor used !
 		} else if (offset >= 0x3000 && offset <= 0x3FFF) {

@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-c -Wall -g
-LDFLAGS=
+LDFLAGS= -pthread
 SOURCES=$(wildcard src/*.c)
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=emu
@@ -8,7 +8,7 @@ EXECUTABLE=emu
 all: $(SOURCES) $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS)
-	$(CC) $(LDFLAGS) $(OBJECTS) -o $@
+	$(CC) $(OBJECTS) -o $@ $(LDFLAGS)
 
 .c.o:
 	$(CC) $(CFLAGS) $< -o $@
