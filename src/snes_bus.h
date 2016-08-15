@@ -8,8 +8,8 @@
 
 typedef struct _snes_bus snes_bus_t;
 
-snes_bus_t *snes_bus_power_up(snes_cart_t *cart, snes_ram_t *wram, snes_apu_t *apu);
-void snes_bus_power_down(snes_bus_t *bus);
+snes_bus_t *snes_bus_init(snes_cart_t *cart, snes_ram_t *wram, snes_apu_t *apu);
+void snes_bus_destroy(snes_bus_t *bus);
 
 uint8_t snes_bus_read(snes_bus_t *bus, uint32_t address);
 void snes_bus_write(snes_bus_t *bus, uint32_t address, uint8_t data);

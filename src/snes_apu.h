@@ -6,7 +6,10 @@
 
 typedef struct _snes_apu snes_apu_t;
 
-snes_apu_t *snes_apu_power_up();
+snes_apu_t *snes_apu_init();
+void snes_apu_destroy(snes_apu_t *apu);
+
+int snes_apu_power_up(snes_apu_t *apu);
 void snes_apu_power_down(snes_apu_t *apu);
 
 snes_apu_port_t *snes_apu_get_port(snes_apu_t *apu);

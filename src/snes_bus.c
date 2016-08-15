@@ -10,7 +10,7 @@ struct _snes_bus{
 	snes_apu_t *apu;
 };
 
-snes_bus_t *snes_bus_power_up(snes_cart_t *cart, snes_ram_t *wram, snes_apu_t *apu)
+snes_bus_t *snes_bus_init(snes_cart_t *cart, snes_ram_t *wram, snes_apu_t *apu)
 {
 	snes_bus_t *bus = malloc(sizeof(snes_bus_t));
 	if(bus == NULL) {
@@ -40,10 +40,11 @@ error_alloc:
 	return NULL;
 }
 
-void snes_bus_power_down(snes_bus_t *bus)
+void snes_bus_destroy(snes_bus_t *bus)
 {
 	bus->cart = NULL;
 	bus->wram = NULL;
+	bus->apu = NULL;
 	free(bus);
 }
 

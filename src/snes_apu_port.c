@@ -12,11 +12,11 @@ struct _snes_apu_port{
 snes_apu_port_t *snes_apu_port_init()
 {
 	snes_apu_port_t *port = malloc(sizeof(snes_apu_port_t));
-	
+
 	if(port == NULL){
 		goto error_alloc;
 	}
-	
+
 	port->input_port = snes_ram_init(4);
 	if(port->input_port == NULL) {
 		goto error_input;
@@ -46,13 +46,13 @@ void snes_apu_port_destroy(snes_apu_port_t *port)
 uint8_t snes_apu_port_read(snes_apu_port_t *port, uint32_t address)
 {
 	uint8_t data = snes_ram_read(port->output_port, address);
-	printf("CPU is reading APU port 0x%x : data is 0x%x\n",0x2140 + address,data);
+	//printf("CPU is reading APU port 0x%x : data is 0x%x\n",0x2140 + address,data);
 	return data;
 }
 
 void snes_apu_port_write(snes_apu_port_t *port, uint32_t address, uint8_t data)
 {
-	printf("CPU is writing APU port 0x%x : data is 0x%x\n",0x2140 + address,data);
+	//printf("CPU is writing APU port 0x%x : data is 0x%x\n",0x2140 + address,data);
 	snes_ram_write(port->input_port, address, data);
 }
 

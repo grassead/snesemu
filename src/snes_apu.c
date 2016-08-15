@@ -10,6 +10,8 @@
 #include "snes_apu_port_internal.h"
 #include "snes_ram.h"
 
+#define printf(...)
+
 typedef enum _data_type{
 	TRANSFER_INIT,
 	TRANSFER_NEW,
@@ -122,7 +124,7 @@ static snes_apu_transfert_data_type_t snes_apu_transfer_get_type(snes_apu_t *apu
 		}
 		goto end;
 	}
-	
+
 	printf("[APU] : invalid transfer cookie = 0x%x (prev 0x%x)\n",data->port0,apu->last_data.port0);
 	assert(0);
 
@@ -130,14 +132,14 @@ end:
 	snes_apu_transfer_update_last_data(apu, data);
 	return ret;
 }
- 
+
 
 static void snes_apu_transfer_get_next_data(snes_apu_t *apu, snes_apu_tranfer_data_t *data)
 {
 	data->port0 = snes_apu_port_internal_read(apu->port, 0);
 	data->port1 = snes_apu_port_internal_read(apu->port , 1);
 	data->port2 = snes_apu_port_internal_read(apu->port, 2);
-	data->port3 = snes_apu_port_internal_read(apu->port, 3);	
+	data->port3 = snes_apu_port_internal_read(apu->port, 3);
 }
 
 static void snes_apu_set_state(snes_apu_t *apu, snes_apu_state state) {
@@ -155,7 +157,7 @@ static uint16_t snes_apu_get_address(uint8_t low, uint8_t high)
 	return addr;
 }
 
-static void snes_apu_transfer_handle(snes_apu_t *apu)
+static int snes_apu_transfer_handle(snes_apu_t *apu)
 {
 	snes_apu_tranfer_data_t data;
 	snes_apu_transfert_data_type_t data_type;
@@ -197,14 +199,21 @@ static void snes_apu_transfer_handle(snes_apu_t *apu)
 			total_transfered =+ transfered;
 			transfered = 0;
 			printf("[APU] : Total tansfered : 0x%x\n",total_transfered);
+			do {
+				if (apu->state == SNES_APU_STATE_STOPPED) {
+					return 0;
+				}
+				usleep(10);
+			}while (1);
 			break;
 		case TRANSFER_NO_CHANGE:
-			return;
+			return 0;
 	}
 	if (apu->state >= SNES_APU_STATE_INITED) {
 		printf("[APU] : Writing cookie to port 0 0x%x\n",data.port0);
 		snes_apu_port_internal_write(apu->port, 0, data.port0);
 	}
+	return 0;
 }
 
 static void* snes_apu_execute(void *data)
@@ -216,22 +225,26 @@ static void* snes_apu_execute(void *data)
 	apu->state = SNES_APU_STATE_NOT_INIT;
 
 
-	while(1) {
-		snes_apu_transfer_handle(apu);
-		usleep(1);
+	for(;;) {
+		if (snes_apu_transfer_handle(apu) == 1) {
+			break;
+		}
+		if (apu->state == SNES_APU_STATE_STOPPED) {
+			break;
+		}
+		//usleep(10);
 	}
 	return NULL;
 }
 
-snes_apu_t *snes_apu_power_up()
+snes_apu_t *snes_apu_init()
 {
-	int ret;
 	snes_apu_t *apu = malloc(sizeof(snes_apu_t));
-	
+
 	if(apu == NULL){
 		goto error_alloc;
 	}
-	
+
 	apu->port = snes_apu_port_init();
 	if(apu->port == NULL) {
 		goto error_port;
@@ -243,16 +256,10 @@ snes_apu_t *snes_apu_power_up()
 	}
 
 	apu->state = SNES_APU_STATE_STOPPED;
-	ret = pthread_create (&apu->execution_thread, NULL,
-						  snes_apu_execute, apu);
-	if(ret < 0) {
-		goto error_thread;
-	}
+
 
 	return apu;
 
-error_thread:
-	snes_ram_destroy(apu->ram);
 error_ram:
 	snes_apu_port_destroy(apu->port);
 error_port:
@@ -261,12 +268,26 @@ error_alloc:
 	return NULL;
 }
 
-void snes_apu_power_down(snes_apu_t *apu)
+void snes_apu_destroy(snes_apu_t *apu)
 {
-	pthread_join(apu->execution_thread, NULL);
+	snes_apu_power_down(apu);
 	snes_apu_port_destroy(apu->port);
 	free(apu);
 }
+
+int snes_apu_power_up(snes_apu_t *apu)
+{
+	int ret = pthread_create (&apu->execution_thread, NULL,
+							  snes_apu_execute, apu);
+	return ret;
+}
+
+void snes_apu_power_down(snes_apu_t *apu)
+{
+	apu->state = SNES_APU_STATE_STOPPED;
+	pthread_join(apu->execution_thread, NULL);
+}
+
 
 snes_apu_port_t *snes_apu_get_port(snes_apu_t *apu)
 {

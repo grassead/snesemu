@@ -479,7 +479,7 @@ static void execute_PEA(struct snes_effective_address eff_addr, snes_cpu_registe
 	uint16_t value;
 	value = fetch_data(eff_addr, registers, bus, 2);
 	snes_cpu_stack_push(stack, value >> 8);
-	snes_cpu_stack_push(stack, value); 
+	snes_cpu_stack_push(stack, value);
 }
 
 static void execute_PEI(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
@@ -487,7 +487,7 @@ static void execute_PEI(struct snes_effective_address eff_addr, snes_cpu_registe
 	uint16_t value;
 	value = fetch_data(eff_addr, registers, bus, 2);
 	snes_cpu_stack_push(stack, value >> 8);
-	snes_cpu_stack_push(stack, value); 
+	snes_cpu_stack_push(stack, value);
 }
 
 static void execute_PER(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
@@ -495,7 +495,7 @@ static void execute_PER(struct snes_effective_address eff_addr, snes_cpu_registe
 	uint16_t value;
 	value = fetch_data(eff_addr, registers, bus, 2);
 	snes_cpu_stack_push(stack, value >> 8);
-	snes_cpu_stack_push(stack, value); 
+	snes_cpu_stack_push(stack, value);
 }
 
 static void execute_PHA(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
@@ -670,6 +670,7 @@ static void execute_RTI(struct snes_effective_address eff_addr, snes_cpu_registe
 
 static void execute_RTL(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
+	printf("RTL\n");
 	uint16_t pc;
 	uint8_t pbr;
 	pc = snes_cpu_stack_pull(stack);
@@ -682,6 +683,7 @@ static void execute_RTL(struct snes_effective_address eff_addr, snes_cpu_registe
 
 static void execute_RTS(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
+	printf("RTS\n");
 	uint16_t pc;
 	uint16_t high;
 	pc = snes_cpu_stack_pull(stack);
@@ -928,6 +930,7 @@ static void execute_TYX(struct snes_effective_address eff_addr, snes_cpu_registe
 static void execute_WAI(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)
 {
 	//wait for interrupt, must assert
+	abort();
 }
 
 static void execute_WDM(struct snes_effective_address eff_addr, snes_cpu_registers_t *registers, snes_bus_t *bus, snes_cpu_stack_t *stack)

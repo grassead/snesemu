@@ -274,6 +274,7 @@ uint8_t snes_cpu_registers_emulation_isset(snes_cpu_registers_t *registers)
 
 void snes_cpu_registers_dump(snes_cpu_registers_t *registers)
 {
+#if 1
 	//Dump status flag
 	if(registers->emulation)
 		printf("PSR : %c%c%c%c%c%c%c%c%c",
@@ -302,4 +303,5 @@ void snes_cpu_registers_dump(snes_cpu_registers_t *registers)
 	printf("DP = 0x%04X ", registers->direct_page);
 	printf("X = 0x%04X, Y = 0x%4X ",registers->x.len == CPU_REGISTER_8_BIT ? registers->x.value8_low:registers->x.value16, registers->y.len == CPU_REGISTER_8_BIT ? registers->y.value8_low:registers->y.value16);
 	printf("SP = 0x%04X",registers->stack_pointer.value16);
+#endif
 }

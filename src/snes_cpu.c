@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
+#include <pthread.h>
+#include <string.h>
 
 #include "snes_cpu_defs.h"
 #include "snes_cpu.h"
@@ -10,12 +12,10 @@
 #include "snes_cpu_mne.h"
 #include "snes_cpu_stack.h"
 
-struct _snes_cpu{
-	snes_cpu_registers_t *registers;
-	snes_cart_t *cart;
-	snes_bus_t *bus;
-	snes_cpu_stack_t *stack;
-};
+#define MAX_BREAKPOINTS 512
+
+#define likely(x)       __builtin_expect((x),1)
+#define unlikely(x)     __builtin_expect((x),0)
 
 typedef struct {
 	snes_cpu_mnemonic_t mne;
@@ -24,12 +24,35 @@ typedef struct {
 } snes_cpu_opcode_t;
 
 typedef struct {
+	uint8_t word; //For debug traces
 	snes_cpu_opcode_t opcode;
 	uint8_t operand_size;
-	uint8_t operand_low;
-	uint8_t operand_high;
-	uint8_t operand_bank;
+	union {
+		uint32_t operand;
+		struct {
+			uint8_t operand_low;
+			uint8_t operand_high;
+			uint8_t operand_bank;
+			uint8_t operand_pad; //pading
+		};
+	};
 } snes_cpu_instruction_t;
+
+struct _snes_cpu{
+	snes_cpu_registers_t *registers;
+	snes_cart_t *cart;
+	snes_bus_t *bus;
+	snes_cpu_stack_t *stack;
+	pthread_t execution_thread;
+	uint32_t breakpoints[MAX_BREAKPOINTS];
+	snes_cpu_instruction_t current_instruction;
+	pthread_mutex_t lock;
+	pthread_cond_t  cond;
+	snes_cpu_execution_mode exec_mode;
+};
+
+
+void snes_cpu_update_next_instruction(snes_cpu_t *cpu);
 
 static snes_cpu_opcode_t ops[256] = {
 	[0x00] = {
@@ -1678,16 +1701,22 @@ static uint8_t snes_cpu_get_opcode_size(snes_cpu_t *cpu, snes_cpu_opcode_t opcod
 	}
 }
 
-snes_cpu_t *snes_cpu_power_up(snes_cart_t *cart, snes_bus_t *bus)
+snes_cpu_t *snes_cpu_init(snes_cart_t *cart, snes_bus_t *bus)
 {
 	snes_cpu_t *cpu = malloc(sizeof(snes_cpu_t));
 	if(cpu == NULL) {
 		printf("Error at allocation time !\n");
 		goto error_alloc;
 	}
+	memset(cpu, 0, sizeof(snes_cpu_t));
 
 	cpu->cart = cart;
 	cpu->bus = bus;
+	cpu->exec_mode = SNES_CPU_EXECUTION_MODE_UNKNOWN;
+	pthread_mutex_init(&(cpu->lock), NULL);
+	pthread_cond_init(&(cpu->cond), NULL);
+
+
 	assert(cpu->cart != NULL);
 	assert(cpu->bus != NULL);
 
@@ -1703,7 +1732,7 @@ snes_cpu_t *snes_cpu_power_up(snes_cart_t *cart, snes_bus_t *bus)
 		goto error_stack;
 	}
 
-
+	snes_cpu_update_next_instruction(cpu);
 
 	return cpu;
 
@@ -1715,10 +1744,12 @@ error_alloc:
 	return NULL;
 }
 
-void snes_cpu_power_down(snes_cpu_t *cpu)
+void snes_cpu_destroy(snes_cpu_t *cpu)
 {
 	cpu->cart = NULL;
 	cpu->bus = NULL;
+	pthread_mutex_destroy(&(cpu->lock));
+	pthread_cond_destroy(&(cpu->cond));
 	snes_cpu_registers_destroy(cpu->registers);
 	snes_cpu_stack_destroy(cpu->stack);
 	free(cpu);
@@ -1739,39 +1770,175 @@ snes_bus_t *snes_cpu_get_bus(snes_cpu_t *cpu)
 	return cpu->bus;
 }
 
-
-void snes_cpu_next_op(snes_cpu_t *cpu)
+void snes_cpu_update_next_instruction(snes_cpu_t *cpu)
 {
-	snes_cpu_instruction_t instruction;
-	struct snes_effective_address eff_addr;
 	int i;
-	uint8_t fetch_size;
 	uint16_t pc = snes_cpu_registers_program_counter_get(cpu->registers);
 	uint32_t pbr = snes_cpu_registers_program_bank_get(cpu->registers);
-	uint8_t word = snes_bus_read(cpu->bus, pc + pbr);
-	uint32_t operand = 0;
-	snes_cpu_registers_program_counter_inc(cpu->registers);
-	instruction.opcode = ops[word];
 
-	fetch_size = snes_cpu_get_opcode_size(cpu, instruction.opcode);
-	for(i = 0; i < fetch_size; i++)
+	memset(&cpu->current_instruction, 0, sizeof(snes_cpu_instruction_t));
+
+	cpu->current_instruction.word = snes_bus_read(cpu->bus, pc + pbr);
+
+	snes_cpu_registers_program_counter_inc(cpu->registers);
+
+	cpu->current_instruction.opcode = ops[cpu->current_instruction.word];
+	cpu->current_instruction.operand_size = snes_cpu_get_opcode_size(cpu, cpu->current_instruction.opcode);
+
+	for(i = 0; i < cpu->current_instruction.operand_size; i++)
 	{
-		operand += (snes_bus_read(cpu->bus,snes_cpu_registers_program_counter_get(cpu->registers)) << i*8);
+		cpu->current_instruction.operand += (snes_bus_read(cpu->bus,snes_cpu_registers_program_counter_get(cpu->registers)) << i*8);
 		snes_cpu_registers_program_counter_inc(cpu->registers);
 	}
 
-	printf("0x%06X : 0x%02X %s (0x%06X) || ",pc + pbr , word, mnemonics_tostring(instruction.opcode.mne),operand);
+}
 
-	snes_cpu_registers_dump(cpu->registers);
-	printf("\n");
+void snes_cpu_execute_instruction(snes_cpu_t *cpu)
+{
+	struct snes_effective_address eff_addr;
 
 	//Construct address
-	eff_addr = snes_cpu_addressing_mode_decode(cpu->bus, cpu->registers, instruction.opcode.mne, instruction.opcode.addr, operand);
+	eff_addr = snes_cpu_addressing_mode_decode(cpu->bus, cpu->registers,
+									cpu->current_instruction.opcode.mne,
+									cpu->current_instruction.opcode.addr,
+									cpu->current_instruction.operand);
 	//Execute instruction
-	snes_cpu_mne_execute(instruction.opcode.mne, eff_addr, cpu);
+	snes_cpu_mne_execute(cpu->current_instruction.opcode.mne, eff_addr, cpu);
+}
+
+void snes_cpu_dump_instruction(snes_cpu_instruction_t instruction)
+{
+#if 1
+	printf("0x%02X %s (0x%06x)", instruction.word,
+								 mnemonics_tostring(instruction.opcode.mne),
+								 instruction.operand);
+#endif
+}
+void snes_cpu_dump_pc(snes_cpu_t *cpu, snes_cpu_instruction_t instruction)
+{
+#if 1
+	uint16_t pc = snes_cpu_registers_program_counter_get(cpu->registers);
+	uint32_t pbr = snes_cpu_registers_program_bank_get(cpu->registers);
+	printf("0x%06X",pc + pbr - instruction.operand_size - 1);
+#endif
+}
+
+void snes_cpu_dump(snes_cpu_t *cpu)
+{
+	snes_cpu_dump_pc(cpu, cpu->current_instruction);
+	printf(" : ");
+	snes_cpu_dump_instruction(cpu->current_instruction);
+	printf(" || ");
+	snes_cpu_registers_dump(cpu->registers);
+	printf("\n");
+}
+
+int snes_cpu_is_breakpoint(snes_cpu_t *cpu)
+{
+	int i;
+	int found = 0;
+
+	uint16_t pc = snes_cpu_registers_program_counter_get(cpu->registers);
+	uint32_t pbr = snes_cpu_registers_program_bank_get(cpu->registers);
+	uint32_t instruction_addr = pc + pbr - cpu->current_instruction.operand_size - 1;
+	
+	for (i = 0; i < MAX_BREAKPOINTS; i++) {
+		if (instruction_addr == cpu->breakpoints[i]) {
+			found = 1;
+			break;
+		}
+	}
+	return found;
+}
+
+void *snes_cpu_execute(void *data)
+{
+	int        should_continue = 0;
+	int        run = 0;
+	snes_cpu_t *cpu            = (snes_cpu_t *) data;
+	for(;;) {
+		if (should_continue == 0) {
+			pthread_mutex_lock(&(cpu->lock));
+			while (cpu->exec_mode == SNES_CPU_EXECUTION_MODE_UNKNOWN)
+			{
+				pthread_cond_wait(&(cpu->cond), &(cpu->lock));
+			}
+			switch (cpu->exec_mode) {
+				case SNES_CPU_EXECUTION_MODE_RUN:
+					should_continue = 1;
+					run = 1;
+					break;
+				case SNES_CPU_EXECUTION_MODE_STEP:
+					snes_cpu_dump(cpu);
+					should_continue = 0;
+					run = 0;
+					break;
+				case SNES_CPU_EXECUTION_MODE_STOP:
+					goto end;
+					break;
+				default:
+					abort();
+			}
+			cpu->exec_mode = SNES_CPU_EXECUTION_MODE_UNKNOWN;
+			pthread_mutex_unlock(&(cpu->lock));
+			//Check the condition
+		}
+		if (cpu->exec_mode == SNES_CPU_EXECUTION_MODE_STOP) {
+			goto end;
+		}
+		if(run == 1 && unlikely(snes_cpu_is_breakpoint(cpu))) {
+			snes_cpu_dump(cpu);
+			printf("Breakpoint reached !\n");
+			should_continue = 0;
+		} else {
+			snes_cpu_execute_instruction(cpu);
+			snes_cpu_update_next_instruction(cpu);
+		}
+	}
+end:
+	return NULL;
+}
+
+int snes_cpu_power_up(snes_cpu_t *cpu)
+{
+	int ret = pthread_create(&(cpu->execution_thread), NULL,
+							 snes_cpu_execute, cpu);
+	return ret;
+}
+
+void snes_cpu_power_down(snes_cpu_t *cpu)
+{
+	snes_cpu_set_execution_mode(cpu, SNES_CPU_EXECUTION_MODE_STOP);
+	pthread_join(cpu->execution_thread, NULL);
+}
+
+int snes_cpu_set_breakpoint(snes_cpu_t *cpu, uint32_t addr)
+{
+	int i;
+	int ret = -1;
+	
+	printf("Setting breakpoint 0x%x (%d)\n", addr, addr);
+	
+	for(i = 0; i < MAX_BREAKPOINTS; i++) {
+		if (cpu->breakpoints[i] == 0) {
+			cpu->breakpoints[i] = addr;
+			ret = 0;
+			break;
+		}
+	}
+	
+	return ret;
 }
 
 void snes_cpu_nmi(snes_cpu_t *cpu)
 {
 	snes_cpu_registers_program_counter_set(cpu->registers, snes_rom_get_nat_interrupt_vectors(snes_cart_get_rom(cpu->cart)).nmi);
+}
+
+void snes_cpu_set_execution_mode(snes_cpu_t *cpu, snes_cpu_execution_mode mode)
+{
+	pthread_mutex_lock(&(cpu->lock));
+	cpu->exec_mode = mode;
+	pthread_cond_signal(&(cpu->cond));
+	pthread_mutex_unlock(&(cpu->lock));
 }

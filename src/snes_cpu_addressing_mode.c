@@ -218,7 +218,7 @@ static struct snes_effective_address snes_cpu_addressing_mode_resolve_direct_pag
 	eff_addr.simple_address = snes_cpu_registers_data_bank_get(registers);
 
 	ind_addr = snes_cpu_registers_direct_page_get(registers);
-	
+
 	if(x.len == CPU_REGISTER_8_BIT)
 		ind_addr += x.value8_low;
 	else
